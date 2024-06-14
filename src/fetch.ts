@@ -29,6 +29,9 @@ export function fetchSync(input: RequestInfo | URL, init?: RequestInit): Respons
  * @param input
  * @param init
  */
-export function fetchSyncAsResult(input: RequestInfo | URL, init?: RequestInit): Result<Response, any> {
+export function fetchSyncAsResult(
+   input: RequestInfo | URL,
+   init?: RequestInit,
+): Result<Response, any> {
    return asyncToSyncAsResult(fetch(input, init));
 }
