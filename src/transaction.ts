@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { type OplogIndex, getOplogIndex, setOplogIndex } from "./bindgen/bindgen";
+import { type OplogIndex, getOplogIndex, setOplogIndex } from "./hostapi";
 import { executeWithDrop, markAtomicOperation } from "./guard";
 import { Result } from "./result";
 

@@ -24,7 +24,7 @@ import {
     setIdempotenceMode,
     setOplogPersistenceLevel,
     setRetryPolicy,
-} from "./bindgen/bindgen";
+} from "./hostapi";
 
 /**
  * PersistenceLevelGuard is a guard type that sets the persistence level for the oplog.
