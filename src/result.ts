@@ -16,19 +16,46 @@
 
 const prototype = {
     /**
+     * Returns `true` if the result is successful, `false` otherwise
+     * @example.
+     * Result.ok(123).isOk() // true
+     * @example
+     * Result.err('error').isOk() // false
+     */
+    isOk,
+    /**
+     * Returns `true` if the result is an error, `false` otherwise
+     * @example
+     * Result.err('error').isOk() // false
+     * @example.
+     * Result.ok(123).isOk() // true
+     */
+    isErr,
+    /**
+     * Returns the successful value of the result or throws the error value.
+     * This should be used when returning from a component function that expects to receive a result.
+     * See https://bytecodealliance.github.io/jco/wit-type-representations.html#results-in-context-function-return-values for more details.
+     * @example Returns the payload of a successful result.
+     * Result.ok(123).unlift() // 123
+     * @example Throws the payload of a failed result.
+     * Result.err('error').unlift() // throws 'error'
+     */
+    unlift,
+    /**
      * Returns `this.value` if `this` is a successful result, otherwise throws a TypeError.
      * @example Returns the payload of a successful result.
      * Result.ok(123).unwrap() // 123
-     * @example Throws the payload of a failed result.
-     * Result.err('error').unwrap() // throws 'error'
+     * @example Throws a TypeError for a failed result.
+     * Result.err('error').unwrap() // throws TypeError
      */
     unwrap,
-
     /**
      *
      * Returns `this.error` if `this` is a failed result, otherwise throws a TypeError.
-     * @example Returns the payload of a failed result.
-     * Result.
+     * @example Throw a TypeError for a successful result.
+     * Result.ok(123).unwrapErr() // throws TypeError
+     * @example Returns the payload of a failed result
+     * Result.err('error').unwrap() // 'error'
      */
     unwrapErr,
     /**
@@ -105,10 +132,8 @@ export namespace Result {
      * const success: Result.ok<number> = Result.ok(123)
      */
     export type Ok<T> = typeof prototype & {
-        readonly value: T;
-        readonly error?: never;
-        readonly isOk: true;
-        readonly isErr: false;
+        readonly tag: "ok";
+        readonly val: T;
     };
 
     /**
@@ -117,33 +142,22 @@ export namespace Result {
      * const failure: Result.err<string> = Result.err('error')
      */
     export type Err<E> = typeof prototype & {
-        readonly value?: never;
-        readonly error: E;
-        readonly isOk: false;
-        readonly isErr: true;
+        readonly tag: "err";
+        readonly val: E;
     };
-
-    const UNIT = ok(undefined);
-
-    /**
-     * @returns A successful result with no payload.
-     */
-    export function unit(): Ok<void> {
-        return UNIT;
-    }
 
     /**
      * Create a successful result.
      */
     export function ok<T>(value: T): Result.Ok<T> {
-        return withPrototype({ value, isOk: true, isErr: false }, prototype);
+        return withPrototype({ tag: "ok", val: value }, prototype);
     }
 
     /**
      * Create an error result.
      */
     export function err<E>(error: E): Err<E> {
-        return withPrototype({ error, isOk: false, isErr: true }, prototype);
+        return withPrototype({ tag: "err", val: error }, prototype);
     }
 
     /**
@@ -173,8 +187,8 @@ export namespace Result {
     export function all<T, E>(results: readonly Result<T, E>[]): Result<T[], E> {
         const values: T[] = [];
         for (const result of results) {
-            if (result.isErr) return result;
-            values.push(result.value);
+            if (result.isErr()) return result;
+            values.push(result.val);
         }
         return Result.ok(values);
     }
@@ -184,28 +198,44 @@ function withPrototype<T, P extends {}>(target: T, prototype: P): T & Omit<P, ke
     return Object.assign(Object.create(prototype), target);
 }
 
+function isOk<T, E>(this: Result<T, E>): this is Result.Ok<T> {
+    return this.tag === "ok";
+}
+
+function isErr<T, E>(this: Result<T, E>): this is Result.Err<E> {
+    return this.tag === "err";
+}
+
+function unlift<T>(this: Result.Ok<T>): T;
+function unlift<E>(this: Result.Err<E>): never;
+function unlift<T, E>(this: Result<T, E>): T;
+function unlift<T, E>(this: Result<T, E>): T {
+    if (this.isOk()) return this.val;
+    else throw this.val;
+}
+
 function unwrap<T>(this: Result.Ok<T>): T;
 function unwrap<E>(this: Result.Err<E>): never;
 function unwrap<T, E>(this: Result<T, E>): T;
 function unwrap<T, E>(this: Result<T, E>): T {
-    if (this.isOk) return this.value;
-    else throw new TypeError(`unwrap·called·on·Err·result:·${this.error}`);
+    if (this.isOk()) return this.val;
+    else throw new TypeError(`unwrap·called·on·Err·result:·${this.val}`);
 }
 
 function unwrapErr<T>(this: Result.Ok<T>): never;
 function unwrapErr<E>(this: Result.Err<E>): E;
 function unwrapErr<T, E>(this: Result<T, E>): E;
 function unwrapErr<T, E>(this: Result<T, E>): E {
-    if (this.isOk) throw new TypeError(`unwrapErr·called·on·Ok·result:·${this.value}`);
-    else return this.error;
+    if (this.isOk()) throw new TypeError(`unwrapErr·called·on·Ok·result:·${this.val}`);
+    else return this.val;
 }
 
 function toUnion<T>(this: Result.Ok<T>): T;
 function toUnion<E>(this: Result.Err<E>): E;
 function toUnion<T, E>(this: Result<T, E>): T | E;
 function toUnion<T, E>(this: Result<T, E>): T | E {
-    if (this.isOk) return this.value;
-    else return this.error;
+    if (this.isOk()) return this.val;
+    else return this.val;
 }
 
 function match<T, E, T2, E2>(this: Result.Ok<T>, f: (value: T) => T2, g: (error: E) => E2): T2;
@@ -216,31 +246,31 @@ function match<T, E, T2, E2>(
     f: (value: T) => T2,
     g: (error: E) => E2,
 ): T2 | E2 {
-    if (this.isOk) return f(this.value);
-    else return g(this.error);
+    if (this.tag == "ok") return f(this.val);
+    else return g(this.val);
 }
 
 function map<T, T2>(this: Result.Ok<T>, f: (value: T) => T2): Result.Ok<T2>;
 function map<T, E, T2>(this: Result.Err<E>, f: (value: T) => T2): Result.Err<E>;
 function map<T, E, T2>(this: Result<T, E>, f: (value: T) => T2): Result<T2, E>;
 function map<T, E, T2>(this: Result<T, E>, f: (value: T) => T2): Result<T2, E> {
-    if (this.isErr) return this;
-    else return Result.ok(f(this.value));
+    if (this.isErr()) return this;
+    else return Result.ok(f(this.val));
 }
 
 function mapError<T, E, E2>(this: Result.Ok<T>, f: (error: E) => E2): Result.Ok<T>;
 function mapError<E, E2>(this: Result.Err<E>, f: (error: E) => E2): Result.Err<E2>;
 function mapError<T, E, E2>(this: Result<T, E>, f: (error: E) => E2): Result<T, E2>;
 function mapError<T, E, E2>(this: Result<T, E>, f: (error: E) => E2): Result<T, E2> {
-    if (this.isOk) return this;
-    else return Result.err(f(this.error));
+    if (this.isOk()) return this;
+    else return Result.err(f(this.val));
 }
 
 function tap<E>(this: Result.Err<E>, f: (error: E) => void): Result.Err<E>;
 function tap<T>(this: Result.Ok<T>, f: (value: T) => void): Result.Ok<T>;
 function tap<T, E>(this: Result<T, E>, f: (value: T) => void): Result<T, E>;
 function tap<T, E>(this: Result<T, E>, f: (value: T) => void): Result<T, E> {
-    if (this.isOk) f(this.value);
+    if (this.isOk()) f(this.val);
     return this;
 }
 
@@ -258,8 +288,8 @@ function flatMap<T, E, T2, E2>(
     f: (value: T) => Result<T2, E2>,
 ): Result<T2, E | E2>;
 function flatMap<T, E, T2, E2>(this: Result<T, E>, f: (value: T) => Result<T2, E2>) {
-    if (this.isErr) return this;
-    else return f(this.value);
+    if (this.isErr()) return this;
+    else return f(this.val);
 }
 
 function flatten<E>(this: Result.Err<E>): Result.Err<E>;
@@ -270,8 +300,8 @@ function flatten<T, E>(this: Result<Result.Ok<T>, E>): Result<T, E>;
 function flatten<E, E2>(this: Result<Result.Err<E>, E2>): Result.Err<E | E2>;
 function flatten<T, E, E2>(this: Result<Result<T, E>, E2>): Result<T, E | E2>;
 function flatten<T, E, E2>(this: Result<Result<T, E>, E2>): Result<T, E | E2> {
-    if (this.isErr) return this;
-    else return this.value;
+    if (this.isErr()) return this;
+    else return this.val;
 }
 
 function assertErrorInstanceOf<T, C extends abstract new (..._: any) => any>(
@@ -290,9 +320,9 @@ function assertErrorInstanceOf<T, E, C extends abstract new (..._: any) => any>(
     this: Result<T, E>,
     constructor: C,
 ): Result<T, E & InstanceType<C>> {
-    if (this.isOk) return this;
+    if (this.isOk()) return this;
 
-    if (this.error instanceof constructor) return this as any;
+    if (this.val instanceof constructor) return this as any;
 
     throw new TypeError(
         `Assertion failed: Expected error to be an instance of ${constructor.name}.`,
