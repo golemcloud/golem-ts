@@ -246,7 +246,7 @@ function match<T, E, T2, E2>(
     f: (value: T) => T2,
     g: (error: E) => E2,
 ): T2 | E2 {
-    if (this.tag == "ok") return f(this.val);
+    if (this.isOk()) return f(this.val);
     else return g(this.val);
 }
 
