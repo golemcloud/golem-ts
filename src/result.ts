@@ -36,11 +36,11 @@ const prototype = {
      * This should be used when returning from a component function that expects to receive a result.
      * See https://bytecodealliance.github.io/jco/wit-type-representations.html#results-in-context-function-return-values for more details.
      * @example Returns the payload of a successful result.
-     * Result.ok(123).unlift() // 123
+     * Result.ok(123).unwrapForWit() // 123
      * @example Throws the payload of a failed result.
-     * Result.err('error').unlift() // throws 'error'
+     * Result.err('error').unwrapForWit() // throws 'error'
      */
-    unlift,
+    unwrapForWit,
     /**
      * Returns `this.value` if `this` is a successful result, otherwise throws a TypeError.
      * @example Returns the payload of a successful result.
@@ -206,10 +206,10 @@ function isErr<T, E>(this: Result<T, E>): this is Result.Err<E> {
     return this.tag === "err";
 }
 
-function unlift<T>(this: Result.Ok<T>): T;
-function unlift<E>(this: Result.Err<E>): never;
-function unlift<T, E>(this: Result<T, E>): T;
-function unlift<T, E>(this: Result<T, E>): T {
+function unwrapForWit<T>(this: Result.Ok<T>): T;
+function unwrapForWit<E>(this: Result.Err<E>): never;
+function unwrapForWit<T, E>(this: Result<T, E>): T;
+function unwrapForWit<T, E>(this: Result<T, E>): T {
     if (this.isOk()) return this.val;
     else throw this.val;
 }
